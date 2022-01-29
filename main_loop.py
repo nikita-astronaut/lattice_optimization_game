@@ -42,7 +42,7 @@ class Hamiltonian:
             solution = index_to_spin(idx, n_qubits)[0]
 
         bit_representations.append(solution.copy())
-        energies.append(evaluate_cost(solution, hamiltonian))
+        energies.append(self.energy(solution))
 
         energies = np.array(energies)
         bit_representations = np.array(bit_representations)
