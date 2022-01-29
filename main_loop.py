@@ -4,7 +4,7 @@
 import numpy as np
 import scipy
 import scipy.sparse
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 
 class Hamiltonian:
