@@ -6,8 +6,11 @@ from typing import Any, Dict
 
 
 class Hamiltonian:
-    def __init__(self):
-        pass
+    def __init__(self, n_qubits, onsite, pair):
+        self.n_qubits = n_qubits
+        self.onsite = onsite
+        self.pair = pair
+        return
 
     def _pretty_graph(self) -> str:
         return r"""
@@ -25,13 +28,35 @@ class Hamiltonian:
     def pretty_graph(self, x: np.ndarray) -> str:
         x = tuple(x.astype(int).tolist())
         return self._pretty_graph().format(*x)
+    
 
-    def solve(self) -> Dict[str, Any]:
-        return {"energy": -12.5, "x": np.array([1, 1, 1, 1, 1], dtype=bool)}
+    def solve(self) -> List[Tuple[float, np.ndarray]]:
+        def index_to_spin(index, n_qubits):
+            return (((np.array([index]).reshape(-1, 1) & (1 << np.arange(n_qubits)))) > 0).astype(np.int64)
 
-    def energy(self, x: np.ndarray) -> float:
-        """Compute energy given a spin configuration `x`."""
-        return 123
+        energies = []
+        bit_representations = []
+        for idx in range(2 ** n_qubits):
+            solution = index_to_spin(idx, n_qubits)[0]
+
+        bit_representations.append(solution.copy())
+        energies.append(evaluate_cost(solution, hamiltonian))
+
+        energies = np.array(energies)
+        bit_representations = np.array(bit_representations)
+
+        return [(x, y) for x, y in zip(np.sort(energies), bit_representations[np.argsort(energies)])]
+
+
+    def energy(self, x: np.ndarray) -> float::
+        energy = 0
+        for single_term in self.onsite:
+            energy += single_term[1] * (x[single_term[0]] == 1)
+        
+        for pair_term in self.pair:
+            energy += pair_term[2] * (x[pair_term[0]] == 1) * (x[pair_term[1]] == 1)
+        
+        return energy
 
 
 class GameState:
