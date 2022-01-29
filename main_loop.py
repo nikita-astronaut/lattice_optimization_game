@@ -2,6 +2,8 @@
 """
 
 import numpy as np
+import scipy
+import scipy.sparse
 from typing import Any, Dict
 
 
@@ -59,6 +61,55 @@ class Hamiltonian:
         return energy
 
 
+def _array_to_int(xs: np.ndarray) -> int:
+    r = 0
+    k = 0
+    for i in xs[::-1]:
+        assert i == 0 or i == 1
+        r |= i << k
+        k += 1
+    return r
+
+
+def _int_to_array(r: int, n: int) -> np.ndarray:
+    xs = np.zeros(n, dtype=bool)
+    for i in range(n):
+        xs[n - 1 - i] = (r >> i) & 1
+    return xs
+
+
+class ExampleHamiltonian01(Hamiltonian):
+    def __init__(self):
+        self.n = 4
+        self.dimension = 2 ** self.n
+        self.onsite = np.random.rand(self.dimension) - 0.5
+        self.pair = scipy.sparse.random(self.dimension, self.dimension, density=0.5)
+        self.pair.data -= 0.5
+        self.pair = 0.5 * (self.pair + self.pair.T)
+
+    def _pretty_graph(self) -> str:
+        return """\
+┌──────────┐
+│    {0}     │
+│          ├────────────┐
+│          │      {1}     │
+│          │            │
+│   ┌──────┴─────┐      │
+│   │            │      │
+│   │     {2}      ├──────┤
+│   ├────────────┘      │
+└───┤                   │
+    │          {3}        │
+    └───────────────────┘"""
+
+    def energy(self, x) -> float:
+        x = _array_to_int(x)
+        v = np.zeros(self.dimension, dtype=float)
+        v[x] = 1
+        y = self.pair @ v + self.onsite * v
+        return np.dot(v, y)
+
+
 class GameState:
     def __init__(self, hamiltonian: Hamiltonian, x: np.ndarray):
         self.hamiltonian = hamiltonian
@@ -90,7 +141,7 @@ class SolveSubsetCommand:
 
 
 def dummy_game_state():
-    return GameState(Hamiltonian(), np.array([0, 1, 0, 0, 1], dtype=bool))
+    return GameState(ExampleHamiltonian01(), np.array([0, 1, 0, 1], dtype=bool))
 
 
 def parse_command(s):
@@ -128,5 +179,6 @@ def play(state: GameState):
         else:
             assert False
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     play(dummy_game_state())
