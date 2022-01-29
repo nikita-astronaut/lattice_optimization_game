@@ -5,9 +5,12 @@ import numpy as np
 from typing import Any, Dict
 
 
+
 class Hamiltonian:
-    def __init__(self):
-        pass
+    def __init__(self, onsite, pair):
+        self.o = onsite
+        self.p = pair
+
 
     def _pretty_graph(self) -> str:
         return r"""
@@ -32,6 +35,68 @@ class Hamiltonian:
     def energy(self, x: np.ndarray) -> float:
         """Compute energy given a spin configuration `x`."""
         return 123
+        
+        
+ #calculates the value for a given state       
+        
+def GetValueHam(H,x):
+    
+    return np.dot(H.o, x) + np.dot(x, np.dot(H.p,x))
+    
+#makes a binary list given an integer input and the length that we are looking for
+
+def Binarize(binary,N):
+    
+    x = []
+    
+    for j in range(N):
+            
+            k = binary//2**(N-j-1)
+            x.append(k)
+            binary = binary-k*2**(N-j-1) 
+    
+    return x
+ 
+#returns the maximum value of the Hamiltonian and the spin configuration
+
+def SolveHamiltonian(H):
+    
+    N = len(H.o)
+    
+    resarray = []
+    
+    for i in range(2**N):
+        
+        #Creates a binary list of spins e.g. [0,0,1,1] for 3
+        x = Binarize(i,N) 
+        
+        result = GetValueHam(H,x)
+        
+        resarray.append(result)
+        
+    best = [max(resarray), Binarize(resarray.index(max(resarray)),N)]   
+    
+    return best
+    
+    
+#Solves it for all configs
+
+def SolveHamiltonianAll(H):
+    
+    N = len(H.o)
+    
+    resarray = []
+    
+    for i in range(2**N):
+        
+        #Creates a binary list of spins e.g. [0,0,1,1] for 3
+        x = Binarize(i,N) 
+        
+        result = GetValueHam(H,x)
+        
+        resarray.append(result)
+   
+    return resarray
 
 
 class GameState:
