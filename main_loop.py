@@ -27,6 +27,7 @@ class Hamiltonian:
 
     def pretty_graph(self, x: np.ndarray) -> str:
         x = tuple(x.astype(int).tolist())
+        x = tuple(map(lambda x: "X" if x == 1 else " ", x))
         return self._pretty_graph().format(*x)
 
     def _solve_bruteforce(self):
@@ -81,25 +82,27 @@ def _int_to_array(r: int, n: int) -> np.ndarray:
 class ExampleHamiltonian01(Hamiltonian):
     def __init__(self):
         n_qubits = 4
-        onsite = [(0, +2), (1, -3), (2, 0), (3, +3)]
-        pair = [(0, 1, -1), (0, 2, 1.5), (0, 3, +1), (1, 2, +2)]
+        onsite = [(0, +3), (1, 0), (2, -2), (3, -3)]
+        pair = [(0, 1, -2), (0, 2, +1), (1, 2, -1.5), (2, 3, -1)]
+        # onsite = [(0, -2), (1, +3), (2, 0), (3, -3)]
+        # pair = [(0, 1, +1), (0, 2, -1.5), (0, 3, -1), (1, 2, -2)]
         super().__init__(n_qubits, onsite, pair)
 
     def _pretty_graph(self) -> str:
         return """\
-┌──────────┐
-│    {0}     │
-│          ├────────────┐
-│          │      {1}     │
-│          │            │
-│   ┌──────┴─────┐      │
-│   │            │      │
-│   │     {2}      ├──────┤
-│   ├────────────┘      │
-└───┤                   │
-    │          {3}        │
-    └───────────────────┘"""
-
+  ┌────────────────────┬────────────────────────────┐
+  │┌───┐  Cadmium      │    Battery           ┌───┐ │
+  ││+3 │   mining      │   technology         │ 0 │ │
+  │└───┘    [{}]       -2  investments  [{}]    └───┘ │
+  └────┬────── +1 ─────┴─────── -1.5 ──────┬────────┘
+       │                          ┌───┐    │
+       │   Elecrical vehicle      │-2 │    │
+       │       investments  [{}]   └───┘    │
+       ├───── -1 ──────────────────────────┤
+       │                            ┌───┐  │
+       │      Opening a nuclear     │-3 │  │
+       │         power plant  [{}]   └───┘  │
+       └───────────────────────────────────┘"""
 
 class GameState:
     def __init__(self, mode, hamiltonian: Hamiltonian, x: np.ndarray, backend):
