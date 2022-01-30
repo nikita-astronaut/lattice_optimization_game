@@ -1,17 +1,28 @@
+from qiskit import QuantumCircuit, ClassicalRegister, QuantumRegister
+from qiskit import Aer, execute
+from qiskit.circuit import Parameter
 import numpy as np
 import qiskit
 from qiskit.quantum_info import Pauli
 from qiskit import opflow
 from qiskit.opflow import PauliSumOp
-from collections import OrderedDict
-from qiskit import Aer
-from qiskit import algorithms
-from qiskit.algorithms import QAOA
-from qiskit.opflow import StateFn
-from qiskit.algorithms.optimizers import ADAM, COBYLA
-from qiskit.circuit.library import TwoLocal
-from qiskit.algorithms import VQE
-from qiskit.circuit.library import TwoLocal
+
+
+def to_matrix(onsite, pair, n_qubits):
+    W = np.zeros((n_qubits, n_qubits), dtype=np.float64)
+    for onsite_term in onsite:
+        i, pi = onsite_term
+        W[i, i] += pi / 2.
+
+    for pair_term in pair:
+        i, j, pij = pair_term
+        W[i, j] += pij / 8.
+        W[j, i] += pij / 8
+
+        W[i, i] += pij / 8
+        W[j, j] += pij / 8
+
+    return W
 
 
 def transform_interaction_to_qiskit_format(n_qubits, hamiltonian):
@@ -35,22 +46,6 @@ def transform_interaction_to_qiskit_format(n_qubits, hamiltonian):
         return shift
 
     shift = get_shift(onsite, pair)
-
-    def to_matrix(onsite, pair, n_qubits):
-        W = np.zeros((n_qubits, n_qubits), dtype=np.float64)
-        for onsite_term in onsite:
-            i, pi = onsite_term
-            W[i, i] += pi / 2.
-
-        for pair_term in pair:
-            i, j, pij = pair_term
-            W[i, j] += pij / 8.
-            W[j, i] += pij / 8
-
-            W[i, i] += pij / 8
-            W[j, j] += pij / 8
-
-        return W
 
     W = to_matrix(onsite, pair, n_qubits)
 
@@ -100,6 +95,135 @@ def bruteforce_solution(n_qubits, hamiltonian):
 
 
 
+def maxcut_obj(x, G):
+    """
+    Given a bitstring as a solution, this function returns
+    the number of edges shared between the two partitions
+    of the graph.
+
+    Args:
+        x: str
+           solution bitstring
+
+        G: networkx graph
+
+    Returns:
+        obj: float
+             Objective
+    """
+    obj = 0
+    for i, j in G.edges():
+        if x[i] != x[j]:
+            obj -= 1
+
+    return obj
+
+
+def compute_expectation(counts, ham):
+    """
+    Computes expectation value based on measurement results
+
+    Args:
+        counts: dict
+                key as bitstring, val as count
+        ham: hamiltonian instance
+    Returns:
+        avg: float
+             expectation value
+    """
+
+    def cast_to_int_array(bitstring):
+        return np.asarray([int(y) for y in (list(bitstring))])
+
+    avg = 0
+    sum_count = 0
+    for bitstring, count in counts.items():
+        obj = evaluate_cost(cast_to_int_array(bitstring), ham) ## BEWARE: order of bitstring
+        avg += obj * count
+        sum_count += count
+    #print('CURRENT LOSS:', avg / sum_count)
+    return avg/sum_count
+
+
+# We will also bring the different circuit components that
+# build the qaoa circuit under a single function
+def create_qaoa_circ(ham, theta):
+    print('CURRENT PARAMETERS DURING THE OPTIMIZATION ARE:', theta)
+    """
+    Creates a parametrized qaoa circuit
+
+    Args:
+        ham: networkx graph
+        theta: list
+               unitary parameters
+
+    Returns:
+        qc: qiskit circuit
+    """
+
+    nqubits = ham.n_qubits
+    p = len(theta) // 2  # number of alternating unitaries
+    qc = QuantumCircuit(nqubits)
+
+    beta = theta[:p]
+    gamma = theta[p:]  # TODO add rz parameters
+
+    # initial_state
+    for i in range(nqubits):
+        qc.h(i)
+
+    for irep in range(p):
+        # problem unitary
+        for pair in list(ham.pair):
+            qc.rzz(2 * gamma[irep] * pair[2], pair[0], pair[1])
+
+        for onsite in list(ham.onsite):
+            qc.rz(2 * gamma[irep] * onsite[1], onsite[0])
+
+        # mixer unitary
+        for i in range(nqubits):
+            qc.rx(2 * beta[irep], i)
+
+    qc.measure_all()
+
+    return qc
+
+# Finally we write a function that executes the circuit on the chosen backend
+def get_expectation(ham, p, shots=512):
+
+    """
+    Runs parametrized circuit
+
+    Args:
+        hham: hamiltonian
+        p: int,
+           Number of repetitions of unitaries
+    """
+
+    backend = Aer.get_backend('qasm_simulator')
+    backend.shots = shots
+
+    def execute_circ(theta):
+        qc = create_qaoa_circ(ham, theta)
+        counts = backend.run(qc, seed_simulator=10,
+                             nshots=512).result().get_counts()
+
+        return compute_expectation(counts, ham)
+
+    return execute_circ
+
+
+from collections import OrderedDict
+from qiskit import Aer
+from qiskit import algorithms
+from qiskit.algorithms import QAOA
+from qiskit.opflow import StateFn
+from qiskit.algorithms.optimizers import ADAM, COBYLA
+from qiskit.circuit.library import TwoLocal
+from qiskit.algorithms import VQE
+from qiskit.circuit.library import TwoLocal
+
+
 def most_frequent_strings(state_vector, num_most_frequent):
     """Compute the most likely binary string from state vector.
     Args:
@@ -112,50 +236,22 @@ def most_frequent_strings(state_vector, num_most_frequent):
     return [np.asarray([int(y) for y in (list(binary_string))]) for binary_string in most_frequent_strings]
 
 
+def qaoa_solve(ham):
+    from scipy.optimize import minimize
+    p = ham.n_qubits
+    expectation = get_expectation(ham, p=p)
 
+    res = minimize(expectation, np.ones(2 * p), method='COBYLA')
 
-class hamiltonian(object):
-    def __init__(self, onsite, pair):
-        self.onsite = onsite
-        self.pair = pair
-        return
+    backend = Aer.get_backend('aer_simulator')
+    backend.shots = 512
 
-n_qubits = 5
+    qc_res = create_qaoa_circ(ham, res.x)
 
-def get_random_Hamiltonian(n_qubits):
-    onsite = []
-    pair = []
+    counts = backend.run(qc_res).result().get_counts()
+    x = most_frequent_strings(counts, 4)
 
-    for i in range(n_qubits):
-        onsite.append((i, np.random.uniform(-2, 2)))
+    costs = [evaluate_cost(xi, ham) for xi in x]
 
-    for i in range(n_qubits):
-        for j in range(i + 1, n_qubits):
-            pair.append((i, j, np.random.uniform(-2, 2)))
-    return hamiltonian(onsite, pair)
+    return np.min(cost)
 
-ham = get_random_Hamiltonian(n_qubits)
-
-qubit_op, offset = transform_interaction_to_qiskit_format(n_qubits, ham)
-energies, bits = bruteforce_solution(n_qubits, ham)
-
-print('ALL BRUTE FORCE SOLUTIONS')
-
-for en, xi in zip(energies, bits):
-    print('BF string:', xi, 'cost:', en)
-
-optimizer = COBYLA()
-#
-#vqe = QAOA(optimizer, quantum_instance=Aer.get_backend('qasm_simulator'))#
-ansatz = TwoLocal(qubit_op.num_qubits, 'ry', 'cz', reps=5, entanglement='full')
-vqe = VQE(ansatz, optimizer, quantum_instance=Aer.get_backend('qasm_simulator'))
-
-result = vqe.compute_minimum_eigenvalue(qubit_op)
-
-x = most_frequent_strings(result.eigenstate, 4)
-x = [1 - xi[::-1] for xi in x]
-
-
-print('\n\n\nTESTING THE QUANTUM OUTPUT')
-for xi in x:
-    print('QC string:', xi, 'cost:', evaluate_cost(xi, ham))

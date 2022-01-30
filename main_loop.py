@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 import scipy.sparse
 from typing import Any, Dict, List, Tuple
-
+from QAOA import qaoa_solve
 
 def index_to_spin(index: int, n_qubits: int) -> np.ndarray:
     return (((np.array([index]).reshape(-1, 1) & (1 << np.arange(n_qubits)))) > 0).astype(np.int64)
