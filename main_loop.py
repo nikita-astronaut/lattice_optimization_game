@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 import scipy.sparse
 from typing import Any, Dict, List, Tuple
-from QAOA import qaoa_solve
+
 
 def index_to_spin(index: int, n_qubits: int) -> np.ndarray:
     return (((np.array([index]).reshape(-1, 1) & (1 << np.arange(n_qubits)))) > 0).astype(np.int64)
@@ -16,10 +16,11 @@ class Hamiltonian:
     onsite: List[Tuple[int, float]]
     pair: List[Tuple[int, int, float]]
 
-    def __init__(self, n_qubits, onsite, pair):
+    def __init__(self, n_qubits, onsite, pair, qaoa_solve=None):
         self.n_qubits = n_qubits
         self.onsite = onsite
         self.pair = pair
+        self.qaoa_solve = qaoa_solve
 
     def _pretty_graph(self) -> str:
         raise NotImplementedError()
@@ -46,7 +47,7 @@ class Hamiltonian:
             return self._solve_bruteforce()
         elif backend == "qaoa":
             print("Running QAOA with {} shots ...".format(n_shots))
-            return qaoa_solve(self, n_shots)
+            return self.qaoa_solve(self, n_shots)
         else:
             assert False
 
@@ -107,7 +108,7 @@ class GameState:
         self.x = x
         self.backend = backend
         if isinstance(self.mode, StandardMode):
-            self.solution = self.hamiltonian.solve(self.backend, n_shots = self.mode.level)
+            self.solution = self.hamiltonian.solve(self.backend, n_shots=self.mode.level)
         else:
             self.solution = None
 
@@ -228,7 +229,7 @@ def step_in_cooperative_mode(state, command):
         onsite = [(i, h) for i, h in enumerate(onsite) if h != 0]
         hamiltonian = Hamiltonian(n_qubits, onsite, pair)
         (_, solution) = hamiltonian.solve(state.backend)[0]
-        for (i, y)  in zip(indices, solution):
+        for (i, y) in zip(indices, solution):
             state.x[i] = y
     else:
         assert False, "invalid command"
@@ -257,9 +258,12 @@ def main(qaoa_solve=None, hamiltonian=None):
     mode = game_setup()
     if qaoa_solve is not None:
         backend = "qaoa"
+        hamiltonian.qaoa_solve = qaoa_solve
     else:
-        backend = "bruteforce" # qaoa
+        backend = "bruteforce"  # qaoa
     play(GameState(mode, hamiltonian, x, backend))
+
+
 #
 # import main_loop
 # main_loop.main(your_custom_function)
