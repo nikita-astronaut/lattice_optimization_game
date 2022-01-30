@@ -148,7 +148,6 @@ def compute_expectation(counts, ham):
 # We will also bring the different circuit components that
 # build the qaoa circuit under a single function
 def create_qaoa_circ(ham, theta):
-    print('CURRENT PARAMETERS DURING THE OPTIMIZATION ARE:', theta)
     """
     Creates a parametrized qaoa circuit
 
@@ -189,7 +188,7 @@ def create_qaoa_circ(ham, theta):
     return qc
 
 # Finally we write a function that executes the circuit on the chosen backend
-def get_expectation(ham, p, shots=512):
+def get_expectation(ham, p, shots):
 
     """
     Runs parametrized circuit
@@ -205,8 +204,7 @@ def get_expectation(ham, p, shots=512):
 
     def execute_circ(theta):
         qc = create_qaoa_circ(ham, theta)
-        counts = backend.run(qc, seed_simulator=10,
-                             nshots=512).result().get_counts()
+        counts = backend.run(qc).result().get_counts()
 
         return compute_expectation(counts, ham)
 
@@ -236,15 +234,15 @@ def most_frequent_strings(state_vector, num_most_frequent):
     return [np.asarray([int(y) for y in (list(binary_string))]) for binary_string in most_frequent_strings]
 
 
-def qaoa_solve(ham):
+def qaoa_solve(ham, n_shots):
     from scipy.optimize import minimize
     p = ham.n_qubits
-    expectation = get_expectation(ham, p=p)
+    expectation = get_expectation(ham, p=p, shots=n_shots)
 
     res = minimize(expectation, np.ones(2 * p), method='COBYLA')
 
     backend = Aer.get_backend('aer_simulator')
-    backend.shots = 512
+    backend.shots = n_shots
 
     qc_res = create_qaoa_circ(ham, res.x)
 
@@ -253,5 +251,5 @@ def qaoa_solve(ham):
 
     costs = [evaluate_cost(xi, ham) for xi in x]
 
-    return np.min(cost)
+    return [(np.min(costs), x[np.argmin(costs)])]
 
