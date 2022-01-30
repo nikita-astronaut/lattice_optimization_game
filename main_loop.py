@@ -250,12 +250,20 @@ def play(state: GameState):
             assert False
 
 
-def main():
-    hamiltonian = ExampleHamiltonian01()
+def main(qaoa_solve=None, hamiltonian=None):
+    if hamiltonian is None:
+        hamiltonian = ExampleHamiltonian01()
     x = np.random.choice([0, 1], size=hamiltonian.n_qubits)
     mode = game_setup()
-    backend = "bruteforce"
+    if qaoa_solve is not None:
+        backend = "qaoa"
+    else:
+        backend = "bruteforce" # qaoa
     play(GameState(mode, hamiltonian, x, backend))
+#
+# import main_loop
+# main_loop.main(your_custom_function)
+#
 
 
 if __name__ == "__main__":
