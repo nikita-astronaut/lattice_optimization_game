@@ -227,7 +227,7 @@ def step_in_cooperative_mode(state, command):
                 onsite[_find_new_index(j)] += state.x[i] * J
 
         onsite = [(i, h) for i, h in enumerate(onsite) if h != 0]
-        hamiltonian = Hamiltonian(n_qubits, onsite, pair)
+        hamiltonian = Hamiltonian(n_qubits, onsite, pair, qaoa_solve=state.hamiltonian.qaoa_solve)
         (_, solution) = hamiltonian.solve(state.backend)[0]
         for (i, y) in zip(indices, solution):
             state.x[i] = y
