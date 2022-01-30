@@ -28,8 +28,7 @@ class Hamiltonian:
         x = tuple(x.astype(int).tolist())
         return self._pretty_graph().format(*x)
 
-    def solve(self, n_shots: int = 100) -> List[Tuple[float, np.ndarray]]:
-        print("Running QAOA with {} shots ...".format(n_shots))
+    def _solve_bruteforce(self):
         energies = []
         bit_representations = []
         for idx in range(2 ** self.n_qubits):
@@ -41,6 +40,15 @@ class Hamiltonian:
         return [
             (x, y) for x, y in zip(np.sort(energies), bit_representations[np.argsort(energies)])
         ]
+
+    def solve(self, backend, n_shots: int = 100) -> List[Tuple[float, np.ndarray]]:
+        if backend == "bruteforce":
+            return self._solve_bruteforce()
+        elif backend == "qaoa":
+            print("Running QAOA with {} shots ...".format(n_shots))
+            return qaoa_solve(self, n_shots)
+        else:
+            assert False
 
     def energy(self, x: np.ndarray) -> float:
         assert np.all((x == 0) | (x == 1))
@@ -93,12 +101,13 @@ class ExampleHamiltonian01(Hamiltonian):
 
 
 class GameState:
-    def __init__(self, mode, hamiltonian: Hamiltonian, x: np.ndarray):
+    def __init__(self, mode, hamiltonian: Hamiltonian, x: np.ndarray, backend):
         self.mode = mode
         self.hamiltonian = hamiltonian
         self.x = x
+        self.backend = backend
         if isinstance(self.mode, StandardMode):
-            self.solution = self.hamiltonian.solve(n_shots = self.mode.level)
+            self.solution = self.hamiltonian.solve(self.backend, n_shots = self.mode.level)
         else:
             self.solution = None
 
@@ -218,7 +227,7 @@ def step_in_cooperative_mode(state, command):
 
         onsite = [(i, h) for i, h in enumerate(onsite) if h != 0]
         hamiltonian = Hamiltonian(n_qubits, onsite, pair)
-        (_, solution) = hamiltonian.solve()[0]
+        (_, solution) = hamiltonian.solve(state.backend)[0]
         for (i, y)  in zip(indices, solution):
             state.x[i] = y
     else:
@@ -245,7 +254,8 @@ def main():
     hamiltonian = ExampleHamiltonian01()
     x = np.random.choice([0, 1], size=hamiltonian.n_qubits)
     mode = game_setup()
-    play(GameState(mode, hamiltonian, x))
+    backend = "bruteforce"
+    play(GameState(mode, hamiltonian, x, backend))
 
 
 if __name__ == "__main__":
